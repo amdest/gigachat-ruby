@@ -1,0 +1,15 @@
+{
+  "model": "GigaChat-2-Max:2.0.28.2",
+  "created_at": 1760434636,
+  "thread_id": "thread-1",
+  "messages": [
+    {
+      "message_id": "msg-1",
+      "role": "assistant",
+      "tools_state_id": "0199e210-2f13-744c-8fe5-c9a19fe27db7",
+      "content": [{ "text": "GigaChat — это сервис, " }, { "text": "который умеет вести диалог." }]
+    }
+  ],
+  "finish_reason": "stop",
+  "usage": { "input_tokens": 55, "input_tokens_details": { "cached_tokens": 4 }, "output_tokens": 30, "total_tokens": 85 }
+}
