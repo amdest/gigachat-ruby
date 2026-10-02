@@ -340,6 +340,13 @@ Zeitwerk inflections: `gigachat` becomes `GigaChat`, `sse_decoder` becomes `SSED
 3. **`files.content` `Accept` header.** The spec says `application/octet-stream`, while the Python SDK sends `application/jpg`. We send `*/*`.
 4. **`GET /batches` shape.** The spec says `{batches: [...]}`, while the JS SDK assumes a bare array. We implement the spec and accept both.
 
+**Live results (2026-10-02, scope `GIGACHAT_API_PERS`, model `GigaChat-2:2.0.30.01`):**
+
+1. **Settled.** v2 stream deltas are `messages[].content[].text`; the Python shape was right.
+2. **Settled.** Responses carry `tool_state_id` (singular) on the assistant message. `Types::Message#tools_state_id` reads both spellings and is aliased as `#tool_state_id`. The v2 accumulator keeps both. In a round trip, the assistant message goes back unchanged and the `tool` message carries only `function_result`. Function calls also include an `id` field, which the lenient types keep.
+3. **Settled.** `Accept: */*` works for `GET /files/{id}/content`; an uploaded `.txt` downloads intact.
+4. **Open.** Batches need a CORP scope.
+
 ## 14. Documentation
 
 **README (English):**

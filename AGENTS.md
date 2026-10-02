@@ -53,6 +53,7 @@ These are easy to get wrong:
   - v2 sends named events (`response.message.delta`, `response.message.done`, `response.tool.in_progress`, `response.tool.completed`) and has no `[DONE]`.
   - Buffer partial lines across network chunks, and decode UTF-8 (Cyrillic) only on complete lines.
 - **Function arguments.** In v1, `function_call.arguments` arrives as a JSON **object**, even though the spec calls it a string.
+- **Tool state id.** v2 responses carry `tool_state_id` (singular) on the assistant message, despite the spec's response schema (`tools_state_id`); this was verified live on 2026-10-02. Read both spellings, and send the assistant message back unchanged.
 - **Deleting files.** It is `POST /files/{id}/delete`, not `DELETE`.
 - **Batches.** `GET /batches` returns `{ "batches": [...] }` (per the spec). Results are fetched as JSONL through `GET /files/{output_file_id}/content`.
 - **Restricted endpoints.** `balance` only works for prepaid packages (it returns 403 on pay-as-you-go). `batches` and `ai/check` only work for CORP (pay-as-you-go).
