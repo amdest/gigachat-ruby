@@ -48,6 +48,8 @@ class GigaChatTestCase < Minitest::Test
     }
   end
 
+  def build_client(**) = GigaChat::Client.new(credentials: CREDENTIALS, **)
+
   def stub_oauth(token: "test-token", expires_at: future_ms)
     stub_request(:post, AUTH).to_return(json_response({ access_token: token, expires_at: }))
   end
