@@ -17,6 +17,15 @@ module GigaChat
   # The shim's name is not a valid constant; errors.rb defines many constants and is required explicitly.
   LOADER.ignore("#{__dir__}/gigachat-ruby.rb", "#{__dir__}/gigachat/errors.rb")
   LOADER.setup
+
+  class << self
+    # Global defaults shared by every client built afterwards.
+    def config = @config ||= Configuration.new
+
+    def configure = yield(config)
+
+    def reset_config! = (@config = Configuration.new)
+  end
 end
 
 require_relative "gigachat/errors"

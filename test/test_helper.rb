@@ -22,6 +22,7 @@ class GigaChatTestCase < Minitest::Test
     super
     @saved_env = ENV.to_h.select { |key, _| key.start_with?("GIGACHAT_") }
     @saved_env.each_key { ENV.delete(it) }
+    GigaChat.reset_config!
   end
 
   def teardown
