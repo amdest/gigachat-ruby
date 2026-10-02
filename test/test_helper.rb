@@ -23,9 +23,12 @@ class GigaChatTestCase < Minitest::Test
     @saved_env = ENV.to_h.select { |key, _| key.start_with?("GIGACHAT_") }
     @saved_env.each_key { ENV.delete(it) }
     GigaChat.reset_config!
+    @slept = []
+    GigaChat::Internal::RetryPolicy.sleeper = ->(seconds) { @slept << seconds }
   end
 
   def teardown
+    GigaChat::Internal::RetryPolicy.sleeper = nil
     ENV.keys.grep(/\AGIGACHAT_/).each { ENV.delete(it) }
     @saved_env.each { |key, value| ENV[key] = value }
     super
