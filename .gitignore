@@ -1,1 +1,5 @@
 !AGENTS.md
+/.bundle/
+/pkg/
+/tmp/
+/vendor/
