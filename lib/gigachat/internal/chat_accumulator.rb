@@ -6,6 +6,8 @@ module GigaChat
     # other parts (function calls, files, ...) are appended, and the last non-nil metadata wins.
     class ChatAccumulator
       META = %i[model created_at created thread_id message_id finish_reason usage additional_data].freeze
+      # Per-message fields; both state id spellings are kept as sent (see Types::Message#tools_state_id).
+      MESSAGE_KEYS = %i[role message_id tool_state_id tools_state_id].freeze
 
       def initialize
         @meta = {}
@@ -28,7 +30,7 @@ module GigaChat
 
       def merge_message(index, message)
         entry = @messages[index] ||= { text: +"", parts: [] }
-        %i[role message_id tools_state_id].each { |key| entry[key] = message[key] if message[key] }
+        MESSAGE_KEYS.each { |key| entry[key] = message[key] if message[key] }
         (message.content || []).each do |part|
           entry[:text] << part.text if part.text
           rest = part.to_h.except(:text)
@@ -38,7 +40,7 @@ module GigaChat
 
       def finalize(entry)
         content = entry[:text].empty? ? entry[:parts] : [{ text: entry[:text] }, *entry[:parts]]
-        entry.slice(:role, :message_id, :tools_state_id).merge(content:)
+        entry.slice(*MESSAGE_KEYS).merge(content:)
       end
     end
   end

@@ -84,6 +84,14 @@ class StreamTest < GigaChatTestCase
     assert_nil response.message.content.find(&:tool_execution), "tool progress must not be accumulated"
   end
 
+  def test_v2_accumulator_keeps_the_live_tool_state_id_field
+    delta = { messages: [{ role: "assistant", tool_state_id: "ts-live", content: [{ text: "Hi" }] }] }
+
+    response = stream_from(:v2, "event: response.message.delta\ndata: #{JSON.generate(delta)}\n\n").response
+
+    assert_equal "ts-live", response.message.tools_state_id
+  end
+
   def test_v1_function_in_progress_deltas_are_not_accumulated
     progress = { choices: [{ delta: { role: "function_in_progress", content: "5 seconds left" }, index: 0 }] }
     answer = { choices: [{ delta: { role: "assistant", content: "Готово" }, index: 0 }] }

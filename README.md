@@ -143,13 +143,15 @@ first = client.chat.create(messages:, tools:)
 if (call = first.function_call)
   result = { temperature: 12 } # call your code with call.arguments (a Hash)
   messages += [
-    first.message,
-    { role: "tool", tools_state_id: first.message.tools_state_id,
-      content: [{ function_result: { name: call.name, result: JSON.generate(result) } }] }
+    first.message, # carries tool_state_id, which ties the result to this call
+    { role: "tool", content: [{ function_result: { name: call.name, result: JSON.generate(result) } }] }
   ]
   puts client.chat.create(messages:, tools:).text
 end
 ```
+
+Pass the assistant message back unchanged: it carries the `tool_state_id` the API returned (also readable as
+`first.message.tools_state_id`).
 
 ### Structured output
 

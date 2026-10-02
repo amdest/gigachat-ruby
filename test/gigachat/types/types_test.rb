@@ -35,6 +35,14 @@ class TypesTest < GigaChatTestCase
     assert_equal({}, arguments.call(nil))
   end
 
+  # The live API (2026-10-02) returns `tool_state_id`; the spec's response schema says `tools_state_id`.
+  def test_message_reads_the_live_tool_state_id_field
+    message = GigaChat::Types::Message.new({ role: "assistant", tool_state_id: "ts-live" })
+
+    assert_equal "ts-live", message.tools_state_id
+    assert_equal "ts-live", message.tool_state_id
+  end
+
   def test_chat_event_predicates
     event = GigaChat::Types::ChatEvent.new({}, type: "response.message.done")
 

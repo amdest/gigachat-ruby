@@ -39,8 +39,9 @@ class SmokeTest < LiveTestCase
     refute_nil final.finish_reason
   end
 
-  # Spec §13, question 2: is tools_state_id accepted back in requests?
-  def test_chat_v2_function_round_trip_with_tools_state_id
+  # Spec §13, question 2. The live API returns `tool_state_id` on the assistant message (2026-10-02); the
+  # message is sent back as returned, and the tool message carries only the function result.
+  def test_chat_v2_function_round_trip_with_tool_state_id
     tools = [{ functions: { specifications: [WEATHER] } }]
     messages = [{ role: "user", content: "Какая погода в Туле?" }]
 
@@ -48,11 +49,10 @@ class SmokeTest < LiveTestCase
     call = first.function_call
 
     refute_nil call, "forced mode must return a function call"
-    refute_nil first.message.tools_state_id, "the response must carry tools_state_id"
+    refute_nil first.message.tool_state_id, "the response must carry the tool state id"
     messages += [
       first.message,
-      { role: "tool", tools_state_id: first.message.tools_state_id,
-        content: [{ function_result: { name: call.name, result: JSON.generate({ temperature: 12 }) } }] }
+      { role: "tool", content: [{ function_result: { name: call.name, result: JSON.generate({ temperature: 12 }) } }] }
     ]
 
     refute_empty @client.chat.create(messages:, tools:).text
