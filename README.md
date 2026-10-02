@@ -235,8 +235,12 @@ requests = [
 ]
 batch = client.batches.create(requests, method: :chat_completions) # or method: :embedder
 batch = client.batches.retrieve(batch.id)
+batch.batch_method                                                # "chat_completions"
 client.batches.results(batch) if batch.completed?                 # parsed JSONL lines
 ```
+
+The API's `method` field is exposed as `batch_method`, because a `method` reader would shadow Ruby's
+`Object#method`. The raw value is also available as `batch[:method]`.
 
 ## Errors
 
