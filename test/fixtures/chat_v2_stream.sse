@@ -1,0 +1,9 @@
+event: response.message.delta
+data: {"model":"GigaChat-2-Max","created_at":1754637655,"messages":[{"role":"assistant","tools_state_id":"ts-1","content":[{"text":"GigaChat — это "}]}]}
+
+event: response.message.delta
+data: {"model":"GigaChat-2-Max","created_at":1754637655,"messages":[{"role":"assistant","content":[{"text":"сервис."}]}]}
+
+event: response.message.done
+data: {"model":"GigaChat-2-Max","created_at":1754637655,"finish_reason":"stop","usage":{"input_tokens":56,"output_tokens":31,"total_tokens":87}}
+

@@ -1,0 +1,54 @@
+plugins:
+  - rubocop-minitest
+  - rubocop-rake
+
+AllCops:
+  NewCops: enable
+  SuggestExtensions: false
+  TargetRubyVersion: 4.0
+  Exclude:
+    - "pkg/**/*"
+    - "tmp/**/*"
+    - "vendor/**/*"
+
+Layout/LineLength:
+  Max: 120
+
+Metrics/AbcSize:
+  Max: 40
+  Exclude: ["test/**/*"]
+
+Metrics/BlockLength:
+  Exclude: ["test/**/*", "*.gemspec", "Rakefile"]
+
+Metrics/ClassLength:
+  Max: 200
+  Exclude: ["test/**/*"]
+
+Metrics/CyclomaticComplexity:
+  Max: 10
+
+Metrics/MethodLength:
+  Max: 40
+  Exclude: ["test/**/*"]
+
+Metrics/ParameterLists:
+  CountKeywordArgs: false
+
+Metrics/PerceivedComplexity:
+  Max: 15
+
+Minitest/MultipleAssertions:
+  Max: 8
+
+Naming/FileName:
+  Exclude: ["lib/gigachat-ruby.rb"]
+
+Style/Documentation:
+  Enabled: false
+
+Style/StringLiterals:
+  EnforcedStyle: double_quotes
+
+Style/StringLiteralsInInterpolation:
+  EnforcedStyle: double_quotes
