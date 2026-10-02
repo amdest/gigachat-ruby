@@ -30,6 +30,11 @@ class TransportTest < GigaChatTestCase
     assert_equal FINGERPRINT, digest, "the bundled PEM must be the genuine Russian Trusted Root CA"
   end
 
+  def test_clients_with_the_same_ca_settings_share_one_cert_store
+    assert_same transport.cert_store, transport.cert_store, "building a store per client costs ~3 ms"
+    refute_same transport.cert_store, transport(bundled_ca: false).cert_store
+  end
+
   def test_cert_store_trusts_bundled_root
     assert transport.cert_store.verify(bundled_root), "the client store must trust the bundled root"
   end

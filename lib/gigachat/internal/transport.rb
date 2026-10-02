@@ -22,6 +22,29 @@ module GigaChat
 
       def self.x_headers(headers) = X_HEADERS.to_h { [it, headers[it]] }.compact
 
+      @cert_stores = {}
+      @cert_stores_lock = Mutex.new
+
+      # System roots plus the bundled Russian root (and an optional extra bundle); additions never replace.
+      # Loading the system roots takes ~3 ms, so clients with the same CA settings share one store. A CA file
+      # replaced on disk is picked up after a restart.
+      def self.cert_store(bundled_ca:, ca_bundle_file:)
+        @cert_stores_lock.synchronize do
+          @cert_stores[[bundled_ca, ca_bundle_file]] ||= OpenSSL::X509::Store.new.tap do |store|
+            store.set_default_paths
+            store.add_file(CA_FILE) if bundled_ca
+            add_ca_bundle(store, ca_bundle_file) if ca_bundle_file
+          end
+        end
+      end
+
+      def self.add_ca_bundle(store, path)
+        store.add_file(path)
+      rescue OpenSSL::X509::StoreError => e
+        raise ConfigurationError, "Cannot load ca_bundle_file #{path}: #{e.message}"
+      end
+      private_class_method :add_ca_bundle
+
       attr_reader :config
 
       def initialize(config)
@@ -38,13 +61,8 @@ module GigaChat
       # v2 chat lives next to the versioned base path: .../v1/ -> .../v2/chat/completions.
       def chat_v2_url = @chat_v2_url ||= "#{base_url.sub(%r{/v\d+/\z}, "/")}v2/chat/completions"
 
-      # System roots plus the bundled Russian root (and an optional extra bundle); additions never replace.
       def cert_store
-        @cert_store ||= OpenSSL::X509::Store.new.tap do |store|
-          store.set_default_paths
-          store.add_file(CA_FILE) if config.bundled_ca
-          add_ca_bundle(store) if config.ca_bundle_file
-        end
+        @cert_store ||= self.class.cert_store(bundled_ca: config.bundled_ca, ca_bundle_file: config.ca_bundle_file)
       end
 
       private
@@ -70,12 +88,6 @@ module GigaChat
           options[:client_key] = OpenSSL::PKey.read(File.read(config.key_file), config.key_file_password)
         end
         options
-      end
-
-      def add_ca_bundle(store)
-        store.add_file(config.ca_bundle_file)
-      rescue OpenSSL::X509::StoreError => e
-        raise ConfigurationError, "Cannot load ca_bundle_file #{config.ca_bundle_file}: #{e.message}"
       end
 
       def warn_insecure
