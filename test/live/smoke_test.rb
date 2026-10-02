@@ -104,10 +104,14 @@ class SmokeTest < LiveTestCase
     assert_includes %w[ai human mixed], @client.ai_check(input: text, model: "GigaCheckClassification").category
   end
 
-  # Spec §13, question 4: the GET /batches shape.
-  def test_batches_list
+  # Spec §13, question 4: the raw GET /batches shape. The client accepts both shapes; this asserts the
+  # documented `{ batches: [...] }` so a CORP run settles which one the API sends.
+  def test_batches_list_shape
     require_scope!("GIGACHAT_API_CORP")
 
-    assert_kind_of GigaChat::Types::BatchList, @client.batches.list
+    raw = @client.request(method: :get, path: "batches")
+
+    assert_kind_of Hash, raw, "GET /batches returned a #{raw.class}, not { batches: [...] }; update spec §13"
+    assert raw.key?(:batches), "GET /batches keys are #{raw.keys}; update spec §13"
   end
 end
