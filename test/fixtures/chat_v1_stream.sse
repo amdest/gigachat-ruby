@@ -1,0 +1,8 @@
+data: {"choices":[{"delta":{"content":"GigaChat — это ","role":"assistant"},"index":0}],"created":1754637655,"model":"GigaChat:2.0.28.2","object":"chat.completion"}
+
+data: {"choices":[{"delta":{"content":"сервис."},"index":0}],"created":1754637655,"model":"GigaChat:2.0.28.2","object":"chat.completion"}
+
+data: {"choices":[{"delta":{"content":""},"index":0,"finish_reason":"stop"}],"created":1754637655,"model":"GigaChat:2.0.28.2","object":"chat.completion","usage":{"prompt_tokens":56,"completion_tokens":31,"total_tokens":87,"precached_prompt_tokens":3}}
+
+data: [DONE]
+
