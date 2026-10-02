@@ -58,6 +58,12 @@ class ConfigurationTest < GigaChatTestCase
     end
   end
 
+  def test_integer_env_values_are_decimal
+    ENV["GIGACHAT_MAX_RETRIES"] = "010"
+
+    assert_equal 10, GigaChat::Configuration.resolve({}).max_retries, "a leading zero must not mean octal"
+  end
+
   def test_invalid_env_value_names_the_variable
     ENV["GIGACHAT_MAX_RETRIES"] = "many"
 

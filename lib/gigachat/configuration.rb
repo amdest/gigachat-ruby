@@ -56,7 +56,7 @@ module GigaChat
     def self.cast(key, raw)
       case key
       when :verify_ssl_certs then BOOLEANS.fetch(raw.strip.downcase) { invalid!(key, raw) }
-      when :max_retries then Integer(raw.strip)
+      when :max_retries then Integer(raw.strip, 10) # base 10: "010" is ten, not octal eight
       when :timeout then Float(raw.strip)
       else raw
       end
