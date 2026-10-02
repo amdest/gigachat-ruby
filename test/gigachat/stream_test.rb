@@ -42,6 +42,12 @@ class StreamTest < GigaChatTestCase
     assert_equal ["GigaChat — это ", "сервис."], stream_from(:v1, fixture("chat_v1_stream.sse")).text.to_a
   end
 
+  def test_malformed_event_data_raises_a_typed_error
+    error = assert_raises(GigaChat::APIError) { stream_from(:v2, "data: not-json\n\n").each { nil } }
+
+    assert_match(/Malformed stream event: not-json/, error.message)
+  end
+
   def test_error_event_raises_a_typed_error
     stream = stream_from(:v2, "event: error\ndata: {\"status\":429,\"message\":\"Too many requests\"}\n\n")
 

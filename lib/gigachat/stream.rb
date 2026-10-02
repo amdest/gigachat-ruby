@@ -63,10 +63,17 @@ module GigaChat
     def parse(sse)
       if @protocol == :v1
         throw :done if sse.data == "[DONE]"
-        Types::V1::ChatCompletionChunk.new(JSON.parse(sse.data, symbolize_names: true))
+        Types::V1::ChatCompletionChunk.new(decode(sse))
       else
-        Types::ChatEvent.new(JSON.parse(sse.data, symbolize_names: true), type: sse.event)
+        Types::ChatEvent.new(decode(sse), type: sse.event)
       end
+    end
+
+    def decode(sse)
+      JSON.parse(sse.data, symbolize_names: true)
+    rescue JSON::ParserError
+      raise APIError.new(status: 200, body: sse.data, headers: @x_headers,
+                         message: "Malformed stream event: #{sse.data[0, 200]}")
     end
 
     def raise_error(sse)
