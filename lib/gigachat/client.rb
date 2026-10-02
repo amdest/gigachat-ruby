@@ -41,6 +41,12 @@ module GigaChat
 
     def chat = @chat ||= Resources::Chat.new(self)
 
+    def embeddings = @embeddings ||= Resources::Embeddings.new(self)
+
+    def models = @models ||= Resources::Models.new(self)
+
+    def functions = @functions ||= Resources::Functions.new(self)
+
     # @api private
     def chat_v2_url = @transport.chat_v2_url
 
