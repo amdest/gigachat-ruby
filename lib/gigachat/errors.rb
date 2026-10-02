@@ -27,9 +27,9 @@ module GigaChat
       return ServerError if status >= 500
 
       {
-        400 => BadRequestError, 401 => AuthenticationError, 403 => PermissionDeniedError,
-        404 => NotFoundError, 413 => RequestEntityTooLargeError, 422 => UnprocessableEntityError,
-        429 => RateLimitError
+        400 => BadRequestError, 401 => AuthenticationError, 402 => PaymentRequiredError,
+        403 => PermissionDeniedError, 404 => NotFoundError, 413 => RequestEntityTooLargeError,
+        422 => UnprocessableEntityError, 429 => RateLimitError
       }.fetch(status, APIError)
     end
 
@@ -59,6 +59,9 @@ module GigaChat
   class BadRequestError < APIError; end
 
   class AuthenticationError < APIError; end
+
+  # 402: the token balance is exhausted. Not in the OpenAPI spec, but returned in practice.
+  class PaymentRequiredError < APIError; end
 
   class PermissionDeniedError < APIError; end
 
