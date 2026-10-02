@@ -150,4 +150,14 @@ class ClientTest < GigaChatTestCase
     refute_includes client.inspect, CREDENTIALS
     assert_equal "test-token", client.token.access_token
   end
+
+  def test_non_utf8_error_body_becomes_a_typed_error
+    stub_oauth
+    page = "<html>Ошибка шлюза</html>".encode("Windows-1251").b
+    stub_request(:get, "#{API}/balance")
+      .to_return(status: 502, body: page, headers: { "Content-Type" => "text/html; charset=windows-1251" })
+
+    error = assert_raises(GigaChat::ServerError) { build_client(max_retries: 0).balance }
+    assert_equal 502, error.status
+  end
 end

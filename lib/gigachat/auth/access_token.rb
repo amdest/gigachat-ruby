@@ -10,6 +10,9 @@ module GigaChat
       def inspect = "#<#{self.class.name} access_token=[FILTERED] expires_at=#{expires_at}>"
 
       alias_method :to_s, :inspect
+
+      # Data#pretty_print (used by pp and IRB) ignores #inspect and would print the token.
+      def pretty_print(printer) = printer.text(inspect)
     end
   end
 end

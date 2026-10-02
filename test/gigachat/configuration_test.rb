@@ -37,6 +37,19 @@ class ConfigurationTest < GigaChatTestCase
     assert_equal "env-model", GigaChat::Configuration.resolve({ model: nil }).model
   end
 
+  def test_nil_global_option_does_not_override
+    ENV["GIGACHAT_TIMEOUT"] = "15"
+    GigaChat.configure do |c|
+      c.base_url = nil
+      c.timeout = nil
+    end
+
+    config = GigaChat::Configuration.resolve({})
+
+    assert_equal "https://api.giga.chat/v1", config.base_url
+    assert_in_delta 15.0, config.timeout
+  end
+
   def test_env_booleans_are_case_and_space_insensitive
     { "False" => false, " NO " => false, "0" => false, "TRUE" => true, "on" => true }.each do |raw, expected|
       ENV["GIGACHAT_VERIFY_SSL_CERTS"] = raw

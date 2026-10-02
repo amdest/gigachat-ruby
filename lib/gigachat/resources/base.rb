@@ -13,7 +13,7 @@ module GigaChat
       def escape(segment) = URI.encode_uri_component(segment.to_s)
 
       def reject_stream_flag!(params)
-        raise ArgumentError, "Use #stream for streaming; #create does not accept stream:" if params.key?(:stream)
+        raise ArgumentError, "Use #stream for streaming; #create does not accept stream: true" if params[:stream]
       end
 
       # Block given: iterate now and return the accumulated response. No block: return the lazy stream.

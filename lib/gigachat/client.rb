@@ -63,14 +63,18 @@ module GigaChat
       payload = JSON.generate(body)
       delivered = false
       fresh = -> { !delivered }
-      retry_policy(options).run(method: :post, retry_if: fresh) do
-        authenticated(headers, replay: fresh) do |signed|
-          stream_once(path, payload, signed, options) do |chunk, response_headers|
-            delivered = true
-            on_chunk.call(chunk, response_headers)
+      escape = Object.new
+      failure = catch(escape) do
+        return retry_policy(options).run(method: :post, retry_if: fresh) do
+          authenticated(headers, replay: fresh) do |signed|
+            stream_once(path, payload, signed, options) do |chunk, response_headers|
+              delivered = true
+              deliver(on_chunk, chunk, response_headers, escape)
+            end
           end
         end
       end
+      raise failure
     end
 
     # Low-level call with auth, retries and error mapping; also the escape hatch for undocumented endpoints.
@@ -147,8 +151,11 @@ module GigaChat
     # With on_data set, Faraday leaves response.body empty, so error bodies are collected here.
     def stream_once(path, payload, headers, options)
       sse = nil
+      seen = nil
       error_body = +"".b
+      started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
       on_data = proc do |chunk, _bytes, env|
+        seen = env
         sse = env.status.between?(200, 299) && event_stream?(env.response_headers) if sse.nil?
         if sse
           yield chunk, env.response_headers
@@ -157,9 +164,21 @@ module GigaChat
         end
       end
       response = perform(method: :post, url: path, body: payload, headers:, options:, on_data:)
+      seen = nil # perform has logged the request
       sse = response.success? && event_stream?(response.headers) if sse.nil?
       raise_stream_failure(response, error_body) unless sse
       response
+    ensure
+      # A finished stream stops with throw (or the caller breaks), which unwinds past perform's log line.
+      log(:post, path, seen.status, seen.response_headers, started) if seen
+    end
+
+    # Faraday's adapter rescues IOError and SystemCallError raised inside on_data and re-raises them as
+    # ConnectionFailed. Caller exceptions are thrown past it so they surface unchanged and are never retried.
+    def deliver(on_chunk, chunk, headers, escape)
+      on_chunk.call(chunk, headers)
+    rescue StandardError => e
+      throw escape, e
     end
 
     def event_stream?(headers) = headers["content-type"].to_s.start_with?("text/event-stream")
@@ -181,7 +200,7 @@ module GigaChat
           req.options.on_data = on_data if on_data
         end
       end
-      log(method, url, response, started)
+      log(method, url, response.status, response.headers, started)
       response
     end
 
@@ -211,12 +230,12 @@ module GigaChat
       false
     end
 
-    def log(method, url, response, started)
+    def log(method, url, status, headers, started)
       return unless config.logger
 
       elapsed = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round
-      config.logger.info("GigaChat: #{method.to_s.upcase} #{url} #{response.status} #{elapsed}ms " \
-                         "req=#{response.headers["x-request-id"]}")
+      config.logger.info("GigaChat: #{method.to_s.upcase} #{url} #{status} #{elapsed}ms " \
+                         "req=#{headers["x-request-id"]}")
     end
   end
 end

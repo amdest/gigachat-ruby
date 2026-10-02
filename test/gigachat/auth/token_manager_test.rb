@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "pp"
 require "test_helper"
 
 class TokenManagerTest < GigaChatTestCase
@@ -116,5 +117,33 @@ class TokenManagerTest < GigaChatTestCase
 
   def test_access_token_inspect_masks_the_secret
     refute_match(/SECRET/, GigaChat::Auth::AccessToken.new(access_token: "SECRET", expires_at: 0).inspect)
+  end
+
+  def test_token_manager_and_access_token_never_print_secrets
+    stub_oauth(token: "TOKEN-SECRET")
+    tokens = manager(credentials: "CRED-SECRET")
+    token = tokens.token
+
+    [tokens.inspect, tokens.pretty_inspect, token.inspect, token.pretty_inspect].each do |text|
+      refute_match(/SECRET/, text)
+    end
+  end
+
+  def test_wrapped_and_lowercase_credentials_are_cleaned
+    stub_oauth
+
+    manager(credentials: "basic #{CREDENTIALS[0, 16]}\n#{CREDENTIALS[16..]}").token
+
+    assert_requested(:post, AUTH) { |req| req.headers["Authorization"] == "Basic #{CREDENTIALS}" }
+  end
+
+  def test_token_survives_a_concurrent_invalidation
+    stub_oauth
+    tokens = manager(credentials: CREDENTIALS)
+    tokens.token
+    # Another thread invalidating the token between the usability check and the return.
+    tokens.define_singleton_method(:usable?) { |token| super(token).tap { @token = nil } }
+
+    refute_nil tokens.token, "a token checked as usable must be the one returned"
   end
 end

@@ -16,7 +16,8 @@ module GigaChat
 
       # A usable token, fetched when missing or about to expire; nil when only mTLS is configured.
       def token
-        return @token if usable?(@token)
+        current = @token # read once: another thread may invalidate! between the check and the return
+        return current if usable?(current)
         return unauthenticated unless refreshable?
 
         @mutex.synchronize { usable?(@token) ? @token : (@token = fetch) }
@@ -28,6 +29,9 @@ module GigaChat
       def invalidate!(stale)
         @mutex.synchronize { @token = nil if @token.equal?(stale) }
       end
+
+      # The default #inspect would print the long-lived credentials.
+      def inspect = "#<#{self.class.name} token=#{@token ? "[FILTERED]" : "nil"}>"
 
       private
 
@@ -92,9 +96,10 @@ module GigaChat
         AuthenticationError.new(status:, body:, headers: response.headers)
       end
 
-      # Keys copied from the dashboard often carry whitespace or a "Basic " prefix.
+      # Keys copied from the dashboard often carry a "Basic " prefix, and `base64` wraps lines at 76 columns.
+      # Base64 never contains whitespace, so any of it is noise (and a CR/LF would break the header).
       def clean(credentials)
-        value = credentials.to_s.strip.delete_prefix("Basic ").strip
+        value = credentials.to_s.sub(/\A\s*basic\s+/i, "").gsub(/\s+/, "")
         value.empty? ? nil : value
       end
     end

@@ -1,8 +1,12 @@
 # frozen_string_literal: true
 
+require "logger"
 require "test_helper"
 
 class ChatTest < GigaChatTestCase
+  class ClientGone < IOError
+  end
+
   def setup
     super
     stub_oauth
@@ -10,6 +14,55 @@ class ChatTest < GigaChatTestCase
   end
 
   def user(content) = { role: "user", content: }
+
+  def stub_v2_stream(body = fixture("chat_v2_stream.sse"))
+    stub_request(:post, V2_CHAT).to_return(status: 200, body:, headers: SSE_HEADERS)
+  end
+
+  def test_create_accepts_stream_false
+    stub_request(:post, V2_CHAT).to_return(json_response(fixture("chat_v2_completion.json")))
+
+    refute_empty @client.chat.create(messages: [user("hi")], stream: false).text
+  end
+
+  def test_exceptions_from_the_stream_block_surface_unchanged
+    stub_v2_stream
+
+    assert_raises(ClientGone) { @client.chat.stream(messages: [user("hi")]) { raise ClientGone, "browser left" } }
+    assert_requested(:post, V2_CHAT, times: 1)
+  end
+
+  def test_completed_stream_is_logged
+    stub_v2_stream
+    log = StringIO.new
+
+    build_client(model: "m", logger: Logger.new(log)).chat.stream(messages: [user("hi")]) { nil }
+
+    assert_match(/POST #{Regexp.escape(V2_CHAT)} 200 \d+ms req=req-s/, log.string)
+  end
+
+  def test_stream_replays_once_after_an_expired_token
+    stub_request(:post, AUTH).to_return(json_response({ access_token: "old", expires_at: future_ms }),
+                                        json_response({ access_token: "new", expires_at: future_ms }))
+    stub_request(:post, V2_CHAT).with(headers: { "Authorization" => "Bearer old" })
+                                .to_return(json_response({ message: "Token has expired" }, status: 401))
+    stub_request(:post, V2_CHAT).with(headers: { "Authorization" => "Bearer new" })
+                                .to_return(status: 200, body: fixture("chat_v2_stream.sse"), headers: SSE_HEADERS)
+
+    assert_equal "GigaChat — это сервис.", @client.chat.stream(messages: [user("hi")]).response.text
+    assert_requested(:post, AUTH, times: 2)
+  end
+
+  def test_stream_is_not_retried_after_the_first_event
+    delta = { messages: [{ role: "assistant", content: [{ text: "Hi" }] }] }
+    stub_v2_stream("event: response.message.delta\ndata: #{JSON.generate(delta)}\n\n" \
+                   "event: error\ndata: {\"status\":503,\"message\":\"overloaded\"}\n\n")
+    seen = []
+
+    assert_raises(GigaChat::ServerError) { @client.chat.stream(messages: [user("hi")]) { seen << it.text } }
+    assert_equal ["Hi"], seen
+    assert_requested(:post, V2_CHAT, times: 1)
+  end
 
   def test_create_posts_v2_body_and_normalizes_string_content
     stub_request(:post, V2_CHAT).to_return(json_response(fixture("chat_v2_completion.json")))

@@ -77,7 +77,8 @@ module GigaChat
       @values = values.dup
     end
 
-    def set?(key) = @values.key?(key)
+    # nil means "not set", as for keyword options: `c.base_url = ENV["PROXY_URL"]` must not wipe the default.
+    def set?(key) = !@values[key].nil?
 
     def to_h = @values.dup
 
