@@ -8,6 +8,12 @@ Minitest::TestTask.create(:test) do |t|
   t.test_globs = ["test/*_test.rb", "test/gigachat/**/*_test.rb"]
 end
 
+namespace :test do
+  Minitest::TestTask.create(:live) do |t|
+    t.test_globs = ["test/live/**/*_test.rb"]
+  end
+end
+
 RuboCop::RakeTask.new
 
 task default: %i[test rubocop]
