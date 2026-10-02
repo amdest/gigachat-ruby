@@ -49,6 +49,8 @@ module GigaChat
 
     def files = @files ||= Resources::Files.new(self)
 
+    def batches = @batches ||= Resources::Batches.new(self)
+
     # @api private
     def chat_v2_url = @transport.chat_v2_url
 
