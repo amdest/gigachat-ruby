@@ -99,6 +99,15 @@ class ClientTest < GigaChatTestCase
     assert_predicate build_client.ai_check(input: "текст", model: "GigaCheckClassification"), :mixed?
   end
 
+  def test_per_request_headers_override_authorization
+    stub_oauth
+    stub_request(:get, "#{API}/balance").to_return(json_response({ balance: [] }))
+
+    build_client.balance(request_options: { headers: { "Authorization" => "Bearer per-request" } })
+
+    assert_requested(:get, "#{API}/balance") { |req| req.headers["Authorization"] == "Bearer per-request" }
+  end
+
   def test_request_options_override_headers_and_reject_unknown_keys
     stub_oauth
     stub_request(:get, "#{API}/balance").with(headers: { "X-Client-ID" => "user-7" })

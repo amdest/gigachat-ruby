@@ -136,14 +136,15 @@ module GigaChat
       end
     end
 
+    # Request headers merge after the token so a per-request Authorization wins (spec §4).
     def authenticated(headers, replay:)
       token = @token_manager.token
-      yield headers.merge(authorization(token))
+      yield authorization(token).merge(headers)
     rescue AuthenticationError => e
       raise unless e.status == 401 && token && @token_manager.refreshable? && replay.call
 
       @token_manager.invalidate!(token)
-      yield headers.merge(authorization(@token_manager.token))
+      yield authorization(@token_manager.token).merge(headers)
     end
 
     def authorization(token) = token ? { "Authorization" => "Bearer #{token.access_token}" } : {}
