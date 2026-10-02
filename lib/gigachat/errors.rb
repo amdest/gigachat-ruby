@@ -45,9 +45,14 @@ module GigaChat
     private
 
     def default_message
-      detail = body.is_a?(Hash) ? body[:message] : body.to_s.strip.gsub(/\s+/, " ")[0, 200]
       request = "(request_id: #{request_id})" if request_id
       [status, detail, request].reject { it.nil? || it.to_s.empty? }.join(" ")
+    end
+
+    # The documented `message`, else the body itself (compact JSON or text), squashed to one short line.
+    def detail
+      text = body.is_a?(Hash) ? body[:message] || JSON.generate(body) : body.to_s
+      text.to_s.strip.gsub(/\s+/, " ")[0, 200]
     end
   end
 

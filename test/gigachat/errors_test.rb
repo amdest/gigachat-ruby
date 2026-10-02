@@ -31,6 +31,12 @@ class ErrorsTest < GigaChatTestCase
     assert_equal "502 <html> Bad Gateway </html>", error.message
   end
 
+  def test_message_falls_back_to_compact_json_without_a_message_field
+    error = GigaChat::APIError.for(status: 400, body: { status: 400, error: "bad things" })
+
+    assert_equal '400 {"status":400,"error":"bad things"}', error.message
+  end
+
   def test_hierarchy
     assert_operator GigaChat::APITimeoutError, :<, GigaChat::APIConnectionError
     assert_operator GigaChat::APIConnectionError, :<, GigaChat::Error
