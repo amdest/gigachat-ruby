@@ -19,6 +19,7 @@ class ChatTest < GigaChatTestCase
     assert_equal "GigaChat — это сервис, который умеет вести диалог.", completion.text
     expected = { model: "GigaChat-2-Max", messages: [{ role: "user", content: [{ text: "Привет" }] }],
                  model_options: { temperature: 0.2 } }
+
     assert_requested(:post, V2_CHAT, body: expected)
   end
 
