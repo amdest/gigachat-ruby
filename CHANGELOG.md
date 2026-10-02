@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.1.1] - 2026-10-02
+
+### Added
+
+- `GigaChat::PaymentRequiredError` for HTTP 402 (token balance exhausted). The OpenAPI spec doesn't list
+  this status, but the API returns it in practice.
+
 ## [0.1.0] - 2026-10-02
 
 ### Added

@@ -248,6 +248,7 @@ The API's `method` field is exposed as `batch_method`, because a `method` reader
 |---|---|
 | 400 | `GigaChat::BadRequestError` |
 | 401 | `GigaChat::AuthenticationError` |
+| 402 | `GigaChat::PaymentRequiredError` (token balance exhausted) |
 | 403 | `GigaChat::PermissionDeniedError` |
 | 404 | `GigaChat::NotFoundError` |
 | 413 | `GigaChat::RequestEntityTooLargeError` |

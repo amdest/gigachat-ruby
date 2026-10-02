@@ -6,6 +6,7 @@ class ErrorsTest < GigaChatTestCase
   def test_for_maps_documented_statuses
     expected = {
       400 => GigaChat::BadRequestError, 401 => GigaChat::AuthenticationError,
+      402 => GigaChat::PaymentRequiredError,
       403 => GigaChat::PermissionDeniedError, 404 => GigaChat::NotFoundError,
       413 => GigaChat::RequestEntityTooLargeError, 422 => GigaChat::UnprocessableEntityError,
       429 => GigaChat::RateLimitError, 500 => GigaChat::ServerError, 503 => GigaChat::ServerError,
