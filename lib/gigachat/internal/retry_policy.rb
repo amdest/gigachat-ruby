@@ -53,7 +53,7 @@ module GigaChat
       def retryable?(error, method)
         case error
         when APITimeoutError then method.to_s.casecmp?("get") # a timed-out POST may already be billed
-        when APIConnectionError then error.cause.is_a?(Faraday::ConnectionFailed) # never retry TLS errors
+        when APIConnectionError then Transport.retryable_connection_error?(error.cause) # never retry TLS errors
         else RETRYABLE_STATUSES.include?(error.status)
         end
       end

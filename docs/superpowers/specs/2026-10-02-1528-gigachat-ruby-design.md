@@ -16,7 +16,7 @@
 | Module | `GigaChat` (Zeitwerk inflection `"gigachat" => "GigaChat"`) |
 | Ruby | `>= 4.0` |
 | Architecture | Thin resources over one `Client#request` choke point, plus lenient response types (approach 1 of 3) |
-| HTTP | Faraday 2 (`net_http` adapter) |
+| HTTP | Faraday 2 (`net_http` adapter); chat streams over HTTP/2 with httpx (§4, §10) |
 | Chat API | v2 is primary (`client.chat`); v1 stays fully supported (`client.chat.v1`) |
 | TLS | Bundle the Russian Trusted Root CA and add it to a per-client cert store next to the system defaults; verification stays on |
 | Live tests | Opt-in smoke suite (`rake test:live`) |
@@ -120,6 +120,14 @@ client = GigaChat::Client.new              # kwargs > GigaChat.configure > GIGAC
 `Internal::Transport` owns two Faraday connections:
 - the API connection, with `base_url` normalized to end in `/`;
 - the OAuth connection.
+
+It also owns an httpx session for chat streams (added after 0.1.1). GigaChat's gateway delivers server-sent events incrementally only over HTTP/2 and buffers the whole answer over HTTP/1.1, the only version Net::HTTP speaks (measured on 2026-10-04: over HTTP/1.1 every event arrived within 1 ms after 4.5–4.9 s; over HTTP/2 they spread over 4–4.7 s from the first at 0.5–0.9 s).
+
+- The session reuses the cert store, the client certificate, the verify flag and the default headers. Timeouts: connect = `open_timeout`; read and write = the request's `timeout`, else `timeout`.
+- Callbacks (response head, body chunks) are registered on a per-request branch, never on the shared session.
+- httpx runs in its own Fiber, which hands the head and each chunk to the caller. The caller's code never runs inside httpx, so an exception, `break` or `throw` from it raises an internal abort into that fiber: httpx's error path resets the connection, where unwinding past httpx would close HTTP/2 gracefully and leave the stream (and GigaChat's generation) running.
+- Errors: `HTTPX::TimeoutError` becomes `APITimeoutError`; `OpenSSL::SSL::SSLError` becomes `APIConnectionError` with the TLS hint; other connection failures become a retryable `APIConnectionError`.
+- Proxies from `HTTP(S)_PROXY` are not applied to streams.
 
 Requests always use relative paths.
 
@@ -265,9 +273,9 @@ This only happens when a `logger` is configured.
 
 It includes `Enumerable` and is built by the chat resources.
 
-- **Lazy.** The HTTP request starts on the first `#each`, which runs Faraday with `on_data`. Without a block, `#each` returns an `Enumerator`.
+- **Lazy.** The HTTP request starts on the first `#each`, which runs `Internal::Transport#stream` (httpx, HTTP/2; see §4). Without a block, `#each` returns an `Enumerator`.
 - **Errors.**
-  - A non-2xx status, checked inside `on_data` through `env.status`, buffers the body and then raises `APIError.for`.
+  - A non-2xx status, known from the response head before any body, buffers the body and then raises `APIError.for`.
   - A 2xx response whose content type isn't `text/event-stream` raises `APIError`.
 - **End of stream.**
   - v1 parses each `data:` as `V1::ChatCompletionChunk` and stops at `data: [DONE]`.
@@ -280,7 +288,7 @@ It includes `Enumerable` and is built by the chat resources.
   - `#response` returns the accumulated `ChatCompletion` / `V1::ChatCompletion`, consuming the stream first if needed.
   - The block form of `chat.stream` returns `#response`.
   - `#text` is an `Enumerator` of text deltas.
-- **Lifetime.** Breaking out of `#each` closes the connection. A stream is single-use, so a second `#each` raises `GigaChat::Error`.
+- **Lifetime.** Breaking out of `#each` (or `[DONE]` ending it) aborts the request and resets the connection. A stream is single-use, so a second `#each` raises `GigaChat::Error`.
 - **Timeouts.** The read timeout applies to the gap between chunks.
 
 ## 11. Layout and packaging
@@ -306,7 +314,7 @@ Zeitwerk inflections: `gigachat` becomes `GigaChat`, `sse_decoder` becomes `SSED
 - Author Aleksandr Dryzhuk, `dev@ad-it.pro`.
 - Homepage `https://github.com/amdest/gigachat-ruby`; changelog URI on the `master` branch.
 - `files` covers `lib/**`, `README.md`, `CHANGELOG.md` and `LICENSE.txt`.
-- **Runtime dependencies:** `faraday ~> 2.14`, `faraday-multipart ~> 1.2`, `zeitwerk ~> 2.8`.
+- **Runtime dependencies:** `faraday ~> 2.14`, `faraday-multipart ~> 1.2`, `httpx ~> 1.8` (HTTP/2 chat streams, §4), `zeitwerk ~> 2.8`.
 - **Development dependencies (Gemfile, alphabetical):** `irb`, `minitest ~> 6.0`, `rake`, `rubocop`, `rubocop-minitest`, `rubocop-rake`, `webmock`.
 
 **RuboCop.** `TargetRubyVersion` 4.0; double quotes; frozen string literals enforced; line length 120; method length 40; ABC size 40; class length 200; cyclomatic complexity 10; perceived complexity 15. Test files are excluded from the metrics cops.

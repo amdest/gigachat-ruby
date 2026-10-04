@@ -10,6 +10,9 @@ class SmokeTest < LiveTestCase
                   required: ["location"] },
     return_parameters: { type: "object", properties: { temperature: { type: "integer" } } }
   }.freeze
+  LIST_QUESTION = {
+    role: "user", content: "Перечисли 10 видов возобновляемой энергии, по одному предложению о каждом."
+  }.freeze
 
   def test_token
     refute_empty @client.token.access_token
@@ -63,6 +66,16 @@ class SmokeTest < LiveTestCase
     refute_empty(@client.chat.v1.stream(messages: [{ role: "user", content: "Привет!" }]) { nil }.text)
   end
 
+  # GigaChat delivers server-sent events incrementally only over HTTP/2; over HTTP/1.1 its gateway buffers
+  # the whole answer, so every event arrives at once.
+  def test_chat_v1_stream_arrives_incrementally
+    assert_incremental { |on_event| @client.chat.v1.stream(messages: [LIST_QUESTION]).each(&on_event) }
+  end
+
+  def test_chat_v2_stream_arrives_incrementally
+    assert_incremental { |on_event| @client.chat.stream(messages: [LIST_QUESTION]).each(&on_event) }
+  end
+
   def test_embeddings
     vectors = @client.embeddings.create(input: %w[Привет Мир]).vectors
 
@@ -113,5 +126,16 @@ class SmokeTest < LiveTestCase
 
     assert_kind_of Hash, raw, "GET /batches returned a #{raw.class}, not { batches: [...] }; update spec §13"
     assert raw.key?(:batches), "GET /batches keys are #{raw.keys}; update spec §13"
+  end
+
+  private
+
+  def assert_incremental
+    arrivals = []
+    yield proc { arrivals << Process.clock_gettime(Process::CLOCK_MONOTONIC) }
+    spread_ms = ((arrivals.last - arrivals.first) * 1000).round
+
+    assert_operator arrivals.size, :>, 3, "a list answer streams as several events"
+    assert_operator spread_ms, :>, 300, "events must arrive over time, not in one burst (spread #{spread_ms} ms)"
   end
 end

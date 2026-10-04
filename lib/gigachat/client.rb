@@ -55,26 +55,23 @@ module GigaChat
     def chat_v2_url = @transport.chat_v2_url
 
     # @api private
-    # Streaming POST that yields raw SSE bytes and response headers. Retries and the 401 replay happen
-    # only until the first byte reaches the caller, so output is never duplicated.
+    # Streaming POST (HTTP/2, see Internal::Transport#stream) that yields raw SSE bytes and response
+    # headers. Retries and the 401 replay happen only until the first byte reaches the caller, so output is
+    # never duplicated; exceptions from the block surface unchanged.
     def request_stream(path:, body:, request_options: {}, &on_chunk)
       options = check_request_options(request_options)
       headers = STREAM_HEADERS.merge(options[:headers] || {})
       payload = JSON.generate(body)
       delivered = false
       fresh = -> { !delivered }
-      escape = Object.new
-      failure = catch(escape) do
-        return retry_policy(options).run(method: :post, retry_if: fresh) do
-          authenticated(headers, replay: fresh) do |signed|
-            stream_once(path, payload, signed, options) do |chunk, response_headers|
-              delivered = true
-              deliver(on_chunk, chunk, response_headers, escape)
-            end
+      retry_policy(options).run(method: :post, retry_if: fresh) do
+        authenticated(headers, replay: fresh) do |signed|
+          stream_once(path, payload, signed, options) do |chunk, response_headers|
+            delivered = true
+            on_chunk.call(chunk, response_headers)
           end
         end
       end
-      raise failure
     end
 
     # Low-level call with auth, retries and error mapping; also the escape hatch for undocumented endpoints.
@@ -149,47 +146,38 @@ module GigaChat
 
     def authorization(token) = token ? { "Authorization" => "Bearer #{token.access_token}" } : {}
 
-    # With on_data set, Faraday leaves response.body empty, so error bodies are collected here.
+    # The head arrives before any body, so a non-2xx or non-SSE response is buffered and raised here, while
+    # the retry and the 401 replay may still resend the request.
     def stream_once(path, payload, headers, options)
-      sse = nil
-      seen = nil
+      status = nil
+      response_headers = nil
       error_body = +"".b
       started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-      on_data = proc do |chunk, _bytes, env|
-        seen = env
-        sse = env.status.between?(200, 299) && event_stream?(env.response_headers) if sse.nil?
-        if sse
-          yield chunk, env.response_headers
+      @transport.stream(path, body: payload, headers:, timeout: options[:timeout]) do |event, *args|
+        if event == :head
+          status, response_headers = args
+        elsif sse?(status, response_headers)
+          yield args.first, response_headers
         else
-          error_body << chunk.b
+          error_body << args.first.b
         end
       end
-      response = perform(method: :post, url: path, body: payload, headers:, options:, on_data:)
-      seen = nil # perform has logged the request
-      sse = response.success? && event_stream?(response.headers) if sse.nil?
-      raise_stream_failure(response, error_body) unless sse
-      response
+      raise_stream_failure(status, response_headers, error_body) unless sse?(status, response_headers)
     ensure
-      # A finished stream stops with throw (or the caller breaks), which unwinds past perform's log line.
-      log(:post, path, seen.status, seen.response_headers, started) if seen
+      # Logged here so a stream that stops early (the caller breaks or [DONE] ends it) is logged too.
+      log(:post, path, status, response_headers, started) if status
     end
 
-    # Faraday's adapter rescues IOError and SystemCallError raised inside on_data and re-raises them as
-    # ConnectionFailed. Caller exceptions are thrown past it so they surface unchanged and are never retried.
-    def deliver(on_chunk, chunk, headers, escape)
-      on_chunk.call(chunk, headers)
-    rescue StandardError => e
-      throw escape, e
-    end
+    def sse?(status, headers) = status&.between?(200, 299) && event_stream?(headers)
 
     def event_stream?(headers) = headers["content-type"].to_s.start_with?("text/event-stream")
 
-    def raise_stream_failure(response, error_body)
+    def raise_stream_failure(status, headers, error_body)
       body = Internal::Util.parse_json(error_body)
-      raise APIError.for(status: response.status, body:, headers: response.headers) unless response.success?
+      raise APIError.for(status:, body:, headers:) unless status.between?(200, 299)
 
-      raise APIError.new(status: response.status, body:, headers: response.headers,
-                         message: "Expected text/event-stream, got #{response.headers["content-type"].inspect}")
+      raise APIError.new(status:, body:, headers:,
+                         message: "Expected text/event-stream, got #{headers["content-type"].inspect}")
     end
 
     def perform(method:, url:, headers:, options:, query: nil, body: nil, on_data: nil)

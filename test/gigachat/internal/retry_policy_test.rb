@@ -108,6 +108,20 @@ class RetryPolicyTest < GigaChatTestCase
     assert_equal 1, ssl
   end
 
+  def test_stream_connection_failures_retry_but_tls_errors_do_not
+    refused = 0
+    tls = 0
+    failing = ->(cause) { raise GigaChat::APIConnectionError, "boom", cause: }
+
+    assert_raises(GigaChat::APIConnectionError) do
+      policy.run(method: :post) { (refused += 1) && failing.call(Errno::ECONNREFUSED.new) }
+    end
+    assert_raises(GigaChat::APIConnectionError) do
+      policy.run(method: :post) { (tls += 1) && failing.call(OpenSSL::SSL::SSLError.new) }
+    end
+    assert_equal [3, 1], [refused, tls], "httpx stream connection errors retry; TLS errors never do"
+  end
+
   def test_non_replayable_and_vetoed_requests_are_not_retried
     attempts = 0
     server_error = -> { (attempts += 1) && raise(GigaChat::APIError.for(status: 503)) }

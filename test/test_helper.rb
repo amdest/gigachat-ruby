@@ -6,7 +6,10 @@ require "gigachat"
 require "minitest/autorun"
 require "tmpdir"
 require "webmock/minitest"
+require "httpx/adapters/webmock"
 
+# Enabled again so the httpx adapter (chat streams), registered after webmock/minitest, is stubbed too.
+WebMock.enable!
 WebMock.disable_net_connect!
 
 # Base class for unit tests: isolates GIGACHAT_* env vars and offers HTTP stub helpers.
