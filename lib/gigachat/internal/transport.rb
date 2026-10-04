@@ -2,13 +2,25 @@
 
 module GigaChat
   module Internal
-    # Builds the Faraday connections (API and OAuth) with TLS settings and default headers.
+    # Builds the Faraday connections (API and OAuth) with TLS settings and default headers, and runs chat
+    # streams over HTTP/2 with httpx: GigaChat's gateway delivers server-sent events incrementally only
+    # over HTTP/2 and buffers the whole response over HTTP/1.1, the only version Net::HTTP speaks.
     class Transport
       CA_FILE = File.expand_path("../certs/russian_trusted_root_ca.pem", __dir__)
       USER_AGENT = "gigachat-ruby/#{VERSION} ruby/#{RUBY_VERSION}".freeze
       X_HEADERS = %w[x-request-id x-session-id x-client-id].freeze
       TLS_HINT = "GigaChat certificates chain to the Russian Trusted Root CA; " \
                  "see the TLS section of the gigachat-ruby README"
+      # Failures before a connection carries the request; TLS errors are left out on purpose.
+      RETRYABLE_CONNECTION_ERRORS = [
+        Faraday::ConnectionFailed, HTTPX::ConnectionError, HTTPX::ResolveError, SocketError, SystemCallError, IOError
+      ].freeze
+
+      # Raised into the httpx fiber when the caller stops reading early. httpx's error path resets the
+      # connection, whereas unwinding past it closes HTTP/2 gracefully and leaves the stream (and GigaChat's
+      # generation) running.
+      class Aborted < StandardError; end
+      private_constant :Aborted
 
       def self.wrap_errors
         yield
@@ -19,6 +31,8 @@ module GigaChat
       rescue Faraday::ConnectionFailed => e
         raise APIConnectionError, e.message
       end
+
+      def self.retryable_connection_error?(error) = RETRYABLE_CONNECTION_ERRORS.any? { error.is_a?(it) }
 
       def self.x_headers(headers) = X_HEADERS.to_h { [it, headers[it]] }.compact
 
@@ -65,7 +79,59 @@ module GigaChat
         @cert_store ||= self.class.cert_store(bundled_ca: config.bundled_ca, ca_bundle_file: config.ca_bundle_file)
       end
 
+      # POSTs over HTTP/2 and yields `:head, status, headers`, then `:chunk, bytes` for each body chunk;
+      # returns once the body is complete. httpx runs in its own fiber, so the block never runs inside
+      # httpx: an exception, break or throw from it aborts the request and resets the connection.
+      def stream(path, body:, headers:, timeout: nil)
+        fiber = stream_fiber(URI.join(base_url, path).to_s, body, headers, timeout || config.timeout)
+        finished = false
+        loop do
+          event, *args = fiber.resume
+          next yield(event, *args) unless event == :done
+
+          finished = true
+          response = args.first
+          raise_stream_error(response.error) if response.is_a?(HTTPX::ErrorResponse)
+          return response
+        end
+      ensure
+        abort_stream(fiber) unless finished
+      end
+
       private
+
+      def stream_session = @stream_session ||= HTTPX.plugin(:callbacks).with(ssl: stream_ssl, headers: default_headers)
+
+      # Callbacks go on a per-request branch: registering them on the shared session would leak them into
+      # every later request.
+      def stream_fiber(url, body, headers, timeout)
+        timeouts = { connect_timeout: config.open_timeout, read_timeout: timeout, write_timeout: timeout }
+        session = stream_session
+                  .with(timeout: timeouts)
+                  .on_response_started { |_request, response| Fiber.yield([:head, response.status, response.headers]) }
+                  .on_response_body_chunk { |_request, _response, chunk| Fiber.yield([:chunk, chunk]) }
+        Fiber.new { [:done, session.post(url, body:, headers:)] }
+      end
+
+      def abort_stream(fiber)
+        fiber.raise(Aborted) if fiber&.alive?
+      rescue Aborted
+        nil
+      end
+
+      def raise_stream_error(error)
+        case error
+        when HTTPX::TimeoutError then raise APITimeoutError, error.message, cause: error
+        when OpenSSL::SSL::SSLError then raise APIConnectionError, "#{error.message}. #{TLS_HINT}", cause: error
+        else raise APIConnectionError, error.message, cause: error
+        end
+      end
+
+      def stream_ssl
+        options = ssl_options(true)
+        { verify_mode: options[:verify] ? OpenSSL::SSL::VERIFY_PEER : OpenSSL::SSL::VERIFY_NONE,
+          cert_store: options[:cert_store], cert: options[:client_cert], key: options[:client_key] }.compact
+      end
 
       def connection(url, client_cert: false)
         request = { timeout: config.timeout, open_timeout: config.open_timeout, write_timeout: config.timeout }

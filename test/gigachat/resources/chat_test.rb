@@ -146,6 +146,43 @@ class ChatTest < GigaChatTestCase
     assert_requested(:post, V2_CHAT, times: 2)
   end
 
+  def test_stream_retries_a_connection_failure_before_the_first_event
+    stub_request(:post, V2_CHAT).to_raise(Errno::ECONNREFUSED)
+                                .then.to_return(status: 200, body: fixture("chat_v2_stream.sse"), headers: SSE_HEADERS)
+
+    assert_equal "GigaChat — это сервис.", @client.chat.stream(messages: [user("hi")]).response.text
+    assert_requested(:post, V2_CHAT, times: 2)
+  end
+
+  def test_stream_timeout_is_not_retried
+    stub_request(:post, V2_CHAT).to_timeout
+
+    assert_raises(GigaChat::APITimeoutError) { @client.chat.stream(messages: [user("hi")]) { nil } }
+    assert_requested(:post, V2_CHAT, times: 1)
+  end
+
+  def test_stream_tls_error_points_to_the_readme_and_is_not_retried
+    stub_request(:post, V2_CHAT).to_raise(OpenSSL::SSL::SSLError.new("certificate verify failed"))
+
+    error = assert_raises(GigaChat::APIConnectionError) { @client.chat.stream(messages: [user("hi")]) { nil } }
+    assert_match(/Russian Trusted Root CA/, error.message, "TLS failures point to the README")
+    assert_requested(:post, V2_CHAT, times: 1)
+  end
+
+  def test_breaking_out_of_a_stream_leaves_the_client_usable
+    stub_v2_stream
+    seen = 0
+
+    @client.chat.stream(messages: [user("hi")]).each do
+      seen += 1
+      break if seen == 1
+    end
+
+    assert_equal 1, seen, "break stops after the first event"
+    assert_equal "GigaChat — это сервис.", @client.chat.stream(messages: [user("hi")]).response.text,
+                 "the next stream is unaffected"
+  end
+
   def test_v1_create_keeps_string_content
     stub_request(:post, "#{API}/chat/completions").to_return(json_response(fixture("chat_v1_completion.json")))
 

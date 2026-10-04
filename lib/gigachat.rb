@@ -2,6 +2,7 @@
 
 require "faraday"
 require "faraday/multipart"
+require "httpx"
 require "json"
 require "openssl"
 require "securerandom"

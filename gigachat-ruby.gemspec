@@ -25,5 +25,6 @@ Gem::Specification.new do |spec|
 
   spec.add_dependency "faraday", "~> 2.14"
   spec.add_dependency "faraday-multipart", "~> 1.2"
+  spec.add_dependency "httpx", "~> 1.8"
   spec.add_dependency "zeitwerk", "~> 2.8"
 end

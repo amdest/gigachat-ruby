@@ -4,6 +4,21 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+
+- Chat streams (v1 and v2) now arrive as they are generated. GigaChat delivers server-sent events incrementally
+  only over HTTP/2 and buffers the whole answer over HTTP/1.1, which is all Net::HTTP (Faraday's default
+  adapter) speaks, so every event used to arrive at once after the answer was complete.
+- Stopping a stream early (breaking out of the block, or an exception from it) resets the connection, so
+  GigaChat stops generating.
+
+### Changed
+
+- Chat streams use [httpx](https://gitlab.com/os85/httpx) over HTTP/2; every other request stays on Faraday.
+  New runtime dependency: `httpx ~> 1.8`. Proxies from `HTTP(S)_PROXY` are not applied to streams.
+
 ## [0.1.1] - 2026-10-02
 
 ### Added

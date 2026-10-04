@@ -126,7 +126,7 @@ stream.text.each { print it } # text deltas only
 stream.response               # accumulated completion
 ```
 
-Breaking out of the block closes the connection.
+Streams run over HTTP/2 (through [httpx](https://gitlab.com/os85/httpx)): GigaChat delivers events as they are generated only over HTTP/2, while over HTTP/1.1 the whole answer arrives at once. Breaking out of the block (or raising from it) aborts the request and closes the connection, so GigaChat stops generating. Proxies from `HTTP(S)_PROXY` are not applied to streams.
 
 ### Function calling
 
